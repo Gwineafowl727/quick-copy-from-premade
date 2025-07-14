@@ -1,3 +1,101 @@
 {
-    
+    "My Vocab": {
+        "matching_deck": "words decks",
+        "search_field": "Word",
+        "fields_to_fill": {
+            "Word Audio": [
+                [
+                    "z sources::Wanikani Ultimate 3: Tokyo Drift",
+                    "Wanikani Ultimate 3",
+                    [
+                        "Reading"
+                    ],
+                    [
+                        "Card_Type",
+                        "Vocabulary"
+                    ],
+                    "Audio"
+                ],
+                [
+                    "z sources::Core 10k",
+                    "Core 10K",
+                    0,
+                    0,
+                    "vocab-audio"
+                ]
+            ],
+            "ExampleJapanese": [
+                [
+                    "z sources::Core2k6k (No Image)",
+                    "Japanese-noim",
+                    0,
+                    0,
+                    "Expression"
+                ],
+                [
+                    "z sources::Core 10k",
+                    "Core 10K",
+                    0,
+                    0,
+                    "sentence"
+                ],
+                [
+                    "z sources::Wanikani Ultimate 3: Tokyo Drift",
+                    "Wanikani Ultimate 3",
+                    [
+                        "Reading"
+                    ],
+                    [
+                        "Card_Type",
+                        "Vocabulary"
+                    ],
+                    "Context_Sentences"
+                ]
+            ],
+            "ExampleEnglish": [
+                [
+                    "z sources::Core 10k",
+                    "Core 10K",
+                    0,
+                    0,
+                    "sentence-translation"
+                ]
+            ],
+            "Sentence Audio": [
+                [
+                    "z sources::Core 10k",
+                    "Core 10K",
+                    0,
+                    0,
+                    "sentence-audio"
+                ]
+            ],
+            "Meaning": [
+                [
+                    "z sources::Core 10k",
+                    "Core 10K",
+                    0,
+                    0,
+                    "vocab-translation"
+                ],
+                [
+                    "z sources::Wanikani Ultimate 3: Tokyo Drift",
+                    "Wanikani Ultimate 3",
+                    [
+                        "Reading"
+                    ],
+                    [
+                        "Card_Type",
+                        "Vocabulary"
+                    ],
+                    "Meaning"
+                ]
+            ]
+        },
+        "other_nt_search_fields": {
+            "Wanikani Ultimate 3": "Characters",
+            "Core 10K": "vocab",
+            "Japanese-noim": "Vocabulary-Kanji"
+        }
+    }
 }

@@ -8,13 +8,14 @@ from .util.FieldSelector import FieldSelector
 from .util.NoteTypeSelector import NoteTypeSelector
 from .util.CheckBoxSelector import CheckBoxSelector
 from .util.KeyRestrictionSelector import KeyRestrictionSelector
+from .util.DuplicateSelector import DuplicateSelector
 
 # Makes sure that working directory is the add-on folder
 abs_path = os.path.abspath(__file__)
 path_of_this_file = os.path.dirname(abs_path)
 os.chdir(path_of_this_file)
 
-def open_settings(editor):
+def open_settings(editor) -> None:
     """
     Opens the menu to configure autopopulate procedure for current note type and deck.
     """
@@ -27,7 +28,8 @@ def open_settings(editor):
     current_fields = editor_note_type.get("flds", [])
     current_field_names = [field["name"] for field in current_fields]
 
-    # Getting editor's current deck
+    # Getting editor's current deck 
+    # note: ONLY WORKS FOR NEW CARD MAKER EDITOR, NOT EXISTING CARD
     deck_id = editor.note.col.decks.current()["id"]
     deck_name = editor.note.col.decks.name(deck_id)
     new_entry["matching_deck"] = deck_name
@@ -102,9 +104,10 @@ def open_settings(editor):
                 key_field_name = s8.exec()
                 s9 = KeyRestrictionSelector(deck_name, c_field, note_type_name, key_field_name)
                 key = s9.exec()
-                deck_config.append([key_field_name, key])
+                key_info = [key_field_name, key]
             else:
-                key = 0
+                key_info = 0
+            deck_config.append(key_info)
 
             # Let user select field to copy from
             s10 = FieldSelector(note_type_object, f"Select field to copy from and into the field {c_field}:")
@@ -119,7 +122,7 @@ def open_settings(editor):
     # From all note types in config, select fields that contain search terms to match
     source_search_fields = {}
     for nto in all_nt_used:
-        s11 = FieldSelector(nto, f"Select field in the note type {nto['name']} that contains search term")
+        s11 = FieldSelector(nto, f"Select field in the note type {nto['name']} \nthat contains search term")
         source_search_fields[nto["name"]] = s11.exec()
 
     new_entry["other_nt_search_fields"] = source_search_fields
@@ -133,12 +136,143 @@ def open_settings(editor):
         json.dump(user_config, file, indent=4)
 
 
-
-def autopopulate(editor):
+def autopopulate(editor) -> None:
     """
-    Automatically populates fields from notetype, in order determined by config.json.
+    Automatically populates fields as determined by config.json.
     """
 
+    with open("config.json", "r") as file:
+        user_config = json.load(file)
+
+    # Getting current note type and config for the note type
+    editor_note = editor.note   #  This object has the editor's fields which we can inject content into
+    editor_note_type = editor_note.model()
+    editor_note_type_name = editor_note_type["name"]
+    nt_config = user_config[editor_note_type_name]
+
+    # Getting the term to use to search
+    nt_search_field_name = nt_config["search_field"]
+    search_phrase = get_note_contents(nt_search_field_name, editor_note, editor_note_type)
+
+    # Getting list of field configs
+    fields_to_fill_dict = nt_config["fields_to_fill"]
+    fields_to_fill_names = fields_to_fill_dict.keys()
+
+
+    # Start filling one editor field at a time
+    for f in fields_to_fill_names:
+        field_config = fields_to_fill_dict[f]
+        value = search_and_retrieve_value(nt_config, field_config, search_phrase)
+        print("About to call put_value_into_editor")
+        put_value_into_editor(f, value, editor, editor_note, editor_note_type)
+
+
+def put_value_into_editor(target_field_name: str, value: str, editor, editor_note, editor_note_type):
+    """Helper function to put a given string value into a specific field in the editor."""
+    editor_note_fields = editor_note.fields  # List of strings of the values in editor
+    nt_field_names = [f["name"] for f in editor_note_type["flds"]]
+    print(editor_note_fields)
+    print("value:" + value)
+    num = 0
+    for i, f in enumerate(nt_field_names):
+        if f == target_field_name:
+            num = i
+            break
+    print("index: " + str(num))
+    editor_note_fields[num] = value
+    editor.loadNote()        # Refresh editor UI
+
+    
+def get_note_contents(retrieval_field_name: str, note, note_type) -> str:
+    """Helper function to retrieve the contents of a given field in the editor."""
+    fields_list = note_type["flds"]
+    field_name_list = []
+    for field_object in fields_list:
+        field_name_list.append(field_object["name"])
+    for i, field_name in enumerate(field_name_list):
+        if field_name == retrieval_field_name:
+            index = i
+    print(note.fields[index])
+    return note.fields[index]
+
+
+def search_and_retrieve_value(nt_config: dict, field_config: list, search_phrase: str) -> str:
+    """
+    Take entire config for one field and output a single value.
+    If more than one result is found, let user choose which one to keep.
+    If no value found, return an empty string.
+    """
+    for deck_config in field_config:
+        deck_name = deck_config[0]
+        deck_object = mw.col.decks.by_name(deck_name)
+        nt_name = deck_config[1]
+        card_types = deck_config[2]
+        key_setting = deck_config[3]
+        field_to_copy_from = deck_config[4]
+        nt_search_field = nt_config["other_nt_search_fields"][nt_name]
+
+        potential_card_ids = mw.col.find_cards(search_phrase)
+
+        card_objects = []
+        note_objects = []
+        for i in potential_card_ids:
+            card_objects.append(mw.col.get_card(i))
+
+        for co in card_objects:
+            source_note = mw.col.get_note(co.nid)
+            valid = (
+                co.did == deck_object["id"] and
+                nt_name == co.note_type()["name"] and
+                discriminate_ct(card_types, co) and
+                discriminate_key(key_setting, co) and
+                (get_note_contents(nt_search_field, source_note, source_note.model()) == search_phrase)
+            )
+            if valid:
+                print("appending note:")
+                print(source_note.fields)
+                note_objects.append(source_note)
+
+        if len(note_objects) == 0:
+            print("no note objects found")
+            continue
+        elif len(note_objects) == 1:
+            note = note_objects[0]
+            return note[field_to_copy_from]
+        else: # Handle duplicate in same source deck
+            print("duplicates found in same deck")
+            pass
+    print("returning empty string")
+    return ""
+   
+
+def discriminate_ct(card_types, co) -> bool:
+    """Helper function to determine if card type restriction matches a card object."""
+    if card_types == 0:
+        return True
+    
+    for ct in card_types:
+        template_index = co.ord
+
+    if co.note_type()['tmpls'][template_index]['name'] == ct:
+        return True
+    else:
+        return False
+    
+
+def discriminate_key(key_settings, co) -> bool:
+    """Helper function to determine if key restriction matches a card object."""
+    if key_settings == 0:
+        return True
+    
+    key_field = key_settings[0]
+    key = key_settings[1]
+    note_object = mw.col.get_note(co.nid)
+
+    if note_object[key_field] == key:
+        return True
+    else:
+        return False
+    
 
 def add_editor_buttons(buttons, editor):
     """
